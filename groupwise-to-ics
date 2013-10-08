@@ -1,0 +1,320 @@
+#!/usr/bin/env python
+
+import imaplib
+import email
+import os.path
+import datetime
+import time
+import optparse
+import sys
+
+class LineUnwrapper:
+    def __init__(self, s):
+        self.lines = s.split('\n')
+        self.lines_read = None
+        self.saved = None
+
+    def each_line(self):
+        for line in self.lines:
+            line = line.rstrip('\r')
+            if line.startswith(' ') or line.startswith('\t'):
+                if self.saved is None:
+                    self.saved = ''
+                    self.lines_read = []
+                self.lines_read.append(line)
+                self.saved += line.strip()
+            else:
+                if self.saved is not None:
+                    retval = (self.lines_read, self.saved)
+                    self.lines_read = [line]
+                    self.saved = line.strip()
+                    yield retval
+                self.lines_read = [line]
+                self.saved = line.strip()
+
+class Calendar:
+
+    def __init__(self, mail_body):
+        self.events = []
+        mail = email.message_from_string(mail_body)
+        ical = self.get_ical_from_multipart(mail)
+        self.parse(ical)
+
+
+    @staticmethod
+    def get_ical_from_multipart(mail):
+        event = None
+        if mail.is_multipart():
+            for part in mail.get_payload():
+                if part.is_multipart():
+                    event = get_ical_from_multipart(part)
+                else:
+                    if part.get_content_type().startswith('text/calendar'):
+                        # We got the ical part of the multipart!
+                        event = part.get_payload()
+        elif mail.get_content_type().startswith('text/calendar'):
+            event = mail.get_payload()
+        return event
+
+    def parse(self, ical):
+        content = LineUnwrapper(ical)
+        vtimezone = None
+        vevent = None
+        tzmap = {}
+
+        for (real_lines, line) in content.each_line():
+            if vtimezone is not None:
+                if line == 'END:VTIMEZONE':
+                    tzmap[vtimezone.tzid] = vtimezone
+                    vtimezone = None
+                else:
+                    vtimezone.parseline(line)
+            elif vevent is None and line == 'BEGIN:VTIMEZONE':
+                vtimezone = Timezone()
+            elif vevent is not None:
+                if line == 'END:VEVENT':
+                    self.events.append(vevent)
+                    vevent = None
+                else:
+                    vevent.parseline(real_lines, line)
+            elif vtimezone is None and line == 'BEGIN:VEVENT':
+                vevent = Event(tzmap)
+               
+
+class Timezone(datetime.tzinfo):
+    def __init__(self):
+        self.tzid = None
+        self.utcmap = {}
+        self.component = None
+        self.changes = []
+
+    def parseline(self, line):
+        if line.startswith('TZID:'):
+            self.tzid = line[len('TZID:'):].lower()
+        elif self.component is None and line.startswith('BEGIN:'):
+            value = line[len('BEGIN:'):]
+            self.component = TZDetails(value);
+        elif self.component is not None:
+            if line.startswith('END:'):
+                self.changes.append(self.component)
+                sorted(self.changes, key = lambda change: change.start)
+                self.component = None
+            else:
+                self.component.parseline(line);
+
+    def findchange(self, dt):
+        result = None
+        for change in self.changes:
+            if dt >= change.start:
+                result = change
+            else:
+                if result is None:
+                    return change
+                else:
+                    return result
+        return result
+
+    def utcoffset(self, dt):
+        change = self.findchange(dt)
+        if change is not None:
+            if dt < change.start:
+                return change.offsetfrom
+            else:
+                return change.offsetto
+        else:
+            return None
+
+class TZDetails:
+    def __init__(self, kind):
+        self.kind = kind
+        self.name = None
+        self.offsetfrom = 0
+        self.offsetto = 0
+        self.start = None
+
+    def parseline(self, line):
+        if line.startswith('TZNAME:'):
+            self.name = line[len('TZNAME:'):]
+        if line.startswith('DTSTART:'):
+            value = line[len('DTSTART:'):]
+            self.start = datetime.datetime.strptime(value, '%Y%m%dT%H%M%S')
+        if line.startswith('TZOFFSETFROM:'):
+            value = line[len('TZOFFSETFROM:'):]
+            self.offsetfrom = self.parseoffset(value)
+        if line.startswith('TZOFFSETTO:'):
+            value = line[len('TZOFFSETTO:'):]
+            self.offsetto = self.parseoffset(value)
+        # TODO Handle the possible RRULE
+
+    def parseoffset(self, value):
+        try:
+            minutes = int(value[-2:])
+            hours = int(value[-4:-2])
+            sign = 1
+            if len(value) == 5 and value[0] == '-':
+                sign = -1
+            minutes = sign * ( minutes + hours * 60 )
+            return datetime.timedelta(minutes = minutes)
+        except ValueError:
+            return None
+
+
+class Event:
+    def __init__(self, tzmap):
+        self.lines = []
+        self.tzmap = tzmap
+        self.uid = None
+        self.gwrecordid = None
+        pass
+
+    def parseline(self, real_lines, line):
+        if line.startswith('DTSTART'):
+            value = line[len('DTSTART'):]
+            utc_value = self.datetime_to_utc(value)
+            new_line = 'DTSTART:%s' % utc_value
+            self.lines.append(new_line)
+        elif line.startswith('DTEND'):
+            value = line[len('DTEND'):]
+            utc_value = self.datetime_to_utc(value)
+            new_line = 'DTEND:%s' % utc_value
+            self.lines.append(new_line)
+        else:
+            self.lines.extend(real_lines)
+            if line.startswith('UID:'):
+                self.uid = line[len('UID:'):]
+            elif line.startswith('X-GWRECORDID:'):
+                self.gwrecordid = line[len('X-GWRECORDID:'):]
+            elif line.startswith('DTSTAMP'):
+                self.dtstamp = self.datetime_to_utc(line[len('DTSTAMP'):])
+
+    def datetime_to_utc(self,local):
+        if local.startswith(";TZID="):
+            # We got a localized time, search for the timezone definition
+            # we extracted from the calendar and convert to UTC
+            tzid = local[len(';TZID='):local.rfind(":")]
+            value = local[local.rfind(':') + 1:]
+
+            tz = self.tzmap[tzid.lower()]
+            dt = datetime.datetime.strptime(value, '%Y%m%dT%H%M%S')
+            utc_dt = dt - tz.utcoffset(dt);
+            utc = utc_dt.strftime('%Y%m%dT%H%M%SZ')
+        elif local.startswith(':'):
+            value = local[1:]
+            if value.endswith('Z'):
+                # We already have UTC: no need for conversion
+                utc = value
+            else:
+                # No time zone indication: assume it's local time
+                dt = time.strptime(value, '%Y%m%dT%H%M%S')
+                utc_dt = time.gmtime(time.mktime(dt))
+                utc = time.strftime('%Y%m%dT%H%M%SZ', utc_dt)
+        return utc
+
+    def to_ical(self):
+        return 'BEGIN:VEVENT\r\n%s\r\nEND:VEVENT\r\n' % '\r\n'.join(self.lines)
+
+class IMAPConnection:
+
+    def __init__(self, server):
+        self.conn = imaplib.IMAP4_SSL(server)
+
+    def connect(self, login, passwd, mailbox):
+        self.conn.login(login, passwd)
+        self.conn.select(mailbox)
+
+    def get_mails_ids(self):
+        err, ids = self.conn.search(None, '(ALL)')
+        return ids[0].split()
+
+    def get_event(self, mail_id):
+        # TODO Caching the events would be needed,
+        # though we still need to find a way to get changed appointments
+        err, data = self.conn.fetch(mail_id, '(RFC822)')
+        calendar = Calendar(data[0][1])
+        event = None
+        if len(calendar.events) > 0:
+            event = calendar.events[0]
+        return event
+
+    def dump(self, path):
+        events = {}
+        ids = self.get_mails_ids( );
+        for mail_id in ids:
+            event = self.get_event(mail_id)
+            uid = event.uid
+            if event.gwrecordid is not None:
+                uid = event.gwrecordid
+
+            if uid is not None:
+                if uid in events and events[uid].dtstamp <= event.dtstamp:
+                    events[uid] = event
+                elif uid not in events:
+                    events[uid] = event
+
+        if path is not None:
+            expanded_path = os.path.expanduser(os.path.expandvars(path))
+            if not os.path.isdir(os.path.dirname(expanded_path)):
+                os.makedirs(os.path.dirname(expanded_path))
+            fp = open(expanded_path, 'w')
+        else:
+            fp = sys.stdout
+
+        fp.write('BEGIN:VCALENDAR\r\n')
+        fp.write('PRODID:-//SUSE Hackweek//NONSGML groupwise-to-ics//EN\r\n')
+        fp.write('VERSION:2.0\r\n')
+
+        for eventid in events:
+            event = events[eventid]
+            fp.write(event.to_ical())
+
+        fp.write('END:VCALENDAR\r\n')
+        if path is not None:
+            fp.close()
+
+
+def main(args):
+
+    usage_str = 'usage: %prog [options]'
+    parser = optparse.OptionParser(usage = usage_str)
+
+    parser.add_option('--gw-imap', dest = 'server',
+                      default = None,
+                      help = 'GroupWise IMAP server address. The server'
+                             'is expected to accept SSL connections')
+    parser.add_option('--gw-login', dest = 'login',
+                      default = None,
+                      help = 'Login on the GroupWise server')
+    parser.add_option('--gw-pass', dest = 'passwd',
+                      default = None,
+                      help = 'Password on the GroupWise server')
+    parser.add_option('--gw-mailbox', dest = 'mailbox',
+                      default = 'Calendar',
+                      help = 'Mailbox containing the calendar events to drop'
+                             'as iCalendar file. (default: Calendar)')
+    parser.add_option('--ics', dest='ics',
+                      default=None,
+                      metavar="FILE",
+                      help='iCalendar file that will be created '
+                           '(if not used, will output ics to stdout)')
+
+    (options, args) = parser.parse_args()
+
+    if options.server is None:
+        parser.error('--gw-imap is required')
+    
+    if options.login is None:
+        parser.error('--gw-login is required')
+    
+    if options.passwd is None:
+        parser.error('--gw-pass is required')
+
+    # TODO More error handling
+    cnx = IMAPConnection(options.server)
+    cnx.connect(options.login, options.passwd, options.mailbox )
+    cnx.dump( options.ics )
+
+    return 0
+
+if __name__ == "__main__":
+    ret = main(sys.argv)
+    sys.exit(ret)
