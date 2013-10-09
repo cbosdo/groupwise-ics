@@ -65,15 +65,35 @@ class Calendar(object):
         changed = {}
         removed = {}
         unchanged = {}
-        for orig_event in self.events:
-            pass
+
+        orig_events = self.get_events_by_uid()
+        dest_events = calendar.get_events_by_uid()
+        for uid in orig_events:
+            if uid in dest_events:
+                if orig_events[uid] == dest_events[uid]:
+                    unchanged[uid] = orig_events[uid]
+                else:
+                    changed[uid] = dest_events[uid]
+            else:
+                removed[uid] = orig_events[uid]
             
         # Then search for new events
         added = {}
-        for dest_event in calendar.events:
-            pass
+        for uid in dest_events:
+            if uid not in orig_events:
+                added[uid] = dest_events[uid]
 
         return (changed, removed, added, unchanged)
+
+    def get_events_by_uid(self):
+        by_uid = {}
+        for event in self.events:
+            uid = event.uid
+            if event.gwrecordid is not None:
+                uid = event.gwrecordid
+            by_uid[uid] = event
+        return by_uid
+
 
 class Timezone(datetime.tzinfo):
     def __init__(self):

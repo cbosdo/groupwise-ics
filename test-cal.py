@@ -77,7 +77,6 @@ class CalendarTest(unittest.TestCase):
 
     def test_parse_event(self):
         data = '\r\n'.join(['BEGIN:VCALENDAR',
-                            'CALSCALE:GREGORIAN',
                             'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
                             'VERSION:2.0',
                             'METHOD:REQUEST',
@@ -118,6 +117,137 @@ class CalendarTest(unittest.TestCase):
                                                           'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
                                                           'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ) ]
         self.assertEqual(parsed.events[0], expected_event)
+    
+    def test_calendar_diff_added(self):
+        data_old = '\r\n'.join(['BEGIN:VCALENDAR',
+                            'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
+                            'VERSION:2.0',
+                            'METHOD:REQUEST',
+                            'BEGIN:VEVENT',
+                            'UID:old-event-uid',
+                            'DTSTAMP:20131007T194119Z',
+                            'DTSTART:20131008T130000Z',
+                            'DTEND:20131008T133000Z',
+                            'TRANSP:OPAQUE',
+                            'SEQUENCE:2',
+                            'SUMMARY:test summary',
+                            'LOCATION:test location',
+                            'DESCRIPTION:test description',
+                            'CLASS:PUBLIC',
+                            'ORGANIZER;CN=Joe Hacker:MAILTO:joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;',
+                            ' RSVP=TRUE;CN=Joe HACKER;LANGUAGE=en:MAILTO:',
+                            ' joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;',
+                            ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
+                            'END:VEVENT',
+                            'END:VCALENDAR'])
+        old = cal.Calendar(data_old)
+        
+        data_new = '\r\n'.join(['BEGIN:VCALENDAR',
+                            'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
+                            'VERSION:2.0',
+                            'METHOD:REQUEST',
+                            'BEGIN:VEVENT',
+                            'UID:old-event-uid',
+                            'DTSTAMP:20131007T194119Z',
+                            'DTSTART:20131008T130000Z',
+                            'DTEND:20131008T133000Z',
+                            'TRANSP:OPAQUE',
+                            'SEQUENCE:2',
+                            'SUMMARY:test summary',
+                            'LOCATION:test location',
+                            'DESCRIPTION:test description',
+                            'CLASS:PUBLIC',
+                            'ORGANIZER;CN=Joe Hacker:MAILTO:joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;',
+                            ' RSVP=TRUE;CN=Joe HACKER;LANGUAGE=en:MAILTO:',
+                            ' joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;',
+                            ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
+                            'END:VEVENT',
+                            'BEGIN:VEVENT',
+                            'UID:added-event-uid',
+                            'DTSTAMP:20131009T194119Z',
+                            'DTSTART:20131010T130000Z',
+                            'DTEND:20131010T133000Z',
+                            'TRANSP:OPAQUE',
+                            'SEQUENCE:2',
+                            'SUMMARY:added event summary',
+                            'LOCATION:added event location',
+                            'DESCRIPTION:added event description',
+                            'CLASS:PUBLIC',
+                            'ORGANIZER;CN=Joe Hacker:MAILTO:joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;',
+                            ' RSVP=TRUE;LANGUAGE=en:MAILTO:bob@hacker.com',
+                            'END:VEVENT',
+                            'END:VCALENDAR'])
+        new = cal.Calendar(data_new)
+
+        (changed, removed, added, unchanged) = old.diff(new)
+
+        self.assertEqual(len(changed), 0)
+        self.assertEqual(len(removed), 0)
+        self.assertEqual(added.keys()[0], 'added-event-uid')
+        self.assertEqual(unchanged.keys()[0], 'old-event-uid')
+
+    def test_calendar_diff_changed(self):
+        data_old = '\r\n'.join(['BEGIN:VCALENDAR',
+                            'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
+                            'VERSION:2.0',
+                            'METHOD:REQUEST',
+                            'BEGIN:VEVENT',
+                            'UID:changed-event-uid',
+                            'DTSTAMP:20131007T194119Z',
+                            'DTSTART:20131008T130000Z',
+                            'DTEND:20131008T133000Z',
+                            'TRANSP:OPAQUE',
+                            'SEQUENCE:2',
+                            'SUMMARY:test summary',
+                            'LOCATION:test location',
+                            'DESCRIPTION:test description',
+                            'CLASS:PUBLIC',
+                            'ORGANIZER;CN=Joe Hacker:MAILTO:joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;',
+                            ' RSVP=TRUE;CN=Joe HACKER;LANGUAGE=en:MAILTO:',
+                            ' joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;',
+                            ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
+                            'END:VEVENT',
+                            'END:VCALENDAR'])
+        old = cal.Calendar(data_old)
+        
+        data_new = '\r\n'.join(['BEGIN:VCALENDAR',
+                            'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
+                            'VERSION:2.0',
+                            'METHOD:REQUEST',
+                            'BEGIN:VEVENT',
+                            'UID:changed-event-uid',
+                            'DTSTAMP:20131007T194119Z',
+                            'DTSTART:20131008T130000Z',
+                            'DTEND:20131008T133000Z',
+                            'TRANSP:OPAQUE',
+                            'SEQUENCE:2',
+                            'SUMMARY:test summary',
+                            'LOCATION:test location',
+                            'DESCRIPTION:test description',
+                            'CLASS:PUBLIC',
+                            'ORGANIZER;CN=Joe Hacker:MAILTO:joe@hacker.com',
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;',
+                            ' RSVP=TRUE;CN=Bob HACKER;LANGUAGE=en:MAILTO:',    # Participant changed from
+                            ' bob@hacker.com',                                 # Joe to Bob
+                            'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;',
+                            ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
+                            'END:VEVENT',
+                            'END:VCALENDAR'])
+        new = cal.Calendar(data_new)
+
+        (changed, removed, added, unchanged) = old.diff(new)
+
+        self.assertEqual(len(unchanged), 0)
+        self.assertEqual(len(removed), 0)
+        self.assertEqual(len(added), 0)
+        self.assertEqual(changed.keys()[0], 'changed-event-uid')
 
 if __name__ == '__main__':
     unittest.main()
