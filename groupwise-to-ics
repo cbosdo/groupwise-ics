@@ -21,6 +21,7 @@ import email
 import optparse
 import sys
 from cal import Calendar, Event
+from datetime import datetime
 
 class IMAPConnection:
     def __init__(self, server):
@@ -67,12 +68,14 @@ class IMAPConnection:
         ids = self.get_mails_ids( );
         for mail_id in ids:
             event = self.get_event(mail_id)
+            dtstamp = datetime.strptime(event.dtstamp, '%Y%m%dT%H%M%SZ')
             uid = event.uid
             if event.gwrecordid is not None:
                 uid = event.gwrecordid
 
             if uid is not None:
-                if uid in events and events[uid].dtstamp <= event.dtstamp:
+                if uid in events and \
+                        datetime.strptime(events[uid].dtstamp, '%Y%m%dT%H%M%SZ') <= dtstamp:
                     events[uid] = event
                 elif uid not in events:
                     events[uid] = event

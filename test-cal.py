@@ -28,11 +28,11 @@ def tzdetails_from_dict(values):
     tzdetails.parseline('TZOFFSETTO:%s' % values['offsetto'])
     return tzdetails
 
-def create_participant(params, uri):
-    participant = cal.Participant('')
-    participant.params = params
-    participant.uri = uri
-    return participant
+def create_parametrized_value(params, value):
+    parametrized = cal.ParametrizedValue('')
+    parametrized.params = params
+    parametrized.value = value
+    return parametrized
 
 class CalendarTest(unittest.TestCase):
 
@@ -78,20 +78,20 @@ class CalendarTest(unittest.TestCase):
         self.assertEqual(tz.changes, expected_changes)
         self.assertEqual(tz.tzid, '/freeassociation.sourceforge.net/Tzfile/Europe/Paris'.lower())
 
-    def test_participants_equals(self):
-        participants1 = [ create_participant( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
+    def test_parametrized_values_equals(self):
+        parametrized_values1 = [ create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'ACCEPTED', 'RSVP': 'TRUE', \
                                                'CN': 'Joe HACKER', 'LANGUAGE': 'en'}, 'MAILTO:joe@hacker.com' ),
-                          create_participant( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
+                          create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
                                                'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ) ]
-        participants2 = [ create_participant( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
+        parametrized_values2 = [ create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
                                                'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ), 
-                          create_participant( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
+                          create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'ACCEPTED', 'RSVP': 'TRUE', \
                                                'CN': 'Joe HACKER', 'LANGUAGE': 'en'}, 'MAILTO:joe@hacker.com' ) ]
-        self.assertTrue( len(set(participants1) ^ set(participants2)) == 0 )
+        self.assertTrue( len(set(parametrized_values1) ^ set(parametrized_values2)) == 0 )
 
     def test_parse_event(self):
         data = '\r\n'.join(['BEGIN:VCALENDAR',
@@ -121,17 +121,17 @@ class CalendarTest(unittest.TestCase):
 
         expected_event = cal.Event(None)
         expected_event.uid = '20131007T194020Z-3587-100-1732-0@laptop'
-        expected_event.dtstamp = '20131007T194119Z'
-        expected_event.dtstart = '20131008T130000Z'
-        expected_event.dtend = '20131008T133000Z'
+        expected_event.dtstamp = '20131007T194119Z' # dtstamp should always be a datetime in UTC
+        expected_event.dtstart = ':20131008T130000Z'
+        expected_event.dtend = ':20131008T133000Z'
         expected_event.summary = 'test summary'
         expected_event.location = 'test location'
         expected_event.description = 'test description'
-        expected_event.organizer = create_participant( {'CN': 'Joe Hacker' }, 'MAILTO:joe@hacker.com' )
-        expected_event.attendees = [ create_participant( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
+        expected_event.organizer = create_parametrized_value( {'CN': 'Joe Hacker' }, 'MAILTO:joe@hacker.com' )
+        expected_event.attendees = [ create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                           'PARTSTAT': 'ACCEPTED', 'RSVP': 'TRUE', \
                                                           'CN': 'Joe HACKER', 'LANGUAGE': 'en'}, 'MAILTO:joe@hacker.com' ),
-                                     create_participant( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
+                                     create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                           'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
                                                           'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ) ]
         self.assertEqual(parsed.events[0], expected_event)

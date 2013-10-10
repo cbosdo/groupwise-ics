@@ -197,21 +197,28 @@ class TZDetails(object):
                self.offsetto == other.offsetto and \
                self.start == other.start
 
-class Participant(object):
-    def __init__(self, value):
-        self._params = {}
-        # Keep the MAILTO: in the uri as nothing says we can only have emails in the value
-        pos = value.find(':')
-        if pos > 0:
-            self.uri = value[value.find(':') + 1:]
-            new_params = {}
-            params = value[:value.find(':')].split(';')
-            for param in params:
-                if len(param) > 0:
-                    key = param[:param.find('=')]
-                    new_params[key] = param[param.find('=') + 1:]
-            self.params = new_params
-   
+class ParametrizedValue(object):
+    def __init__(self, ical):
+        pos = ical.find(':')
+
+        self.value = None
+
+        # Split the value from the parameters
+        if pos >= 0:
+            self.value = ical[pos + 1:]
+            params = ical[:pos].split(';')
+        else:
+            params = ical.split(';')
+
+        # Process the parameters
+        new_params = {}
+        for param in params:
+            pos = param.find('=')
+            if pos >= 0:
+                key = param[:pos]
+                new_params[key] = param[pos + 1:]
+        self.params = new_params
+    
     def set_params(self, value):
         self._params = {}
         # Upper case all keys to avoid potential problems
@@ -220,10 +227,10 @@ class Participant(object):
     def get_params(self):
         return self._params;
     params = property(get_params, set_params)
-
+    
     def __eq__(self, other):
         params_equals = set(self.params.items()) ^ set(other.params.items())
-        return self.uri == other.uri and len(params_equals) == 0
+        return self.value == other.value and len(params_equals) == 0
 
     def __repr__(self):
         return self.to_ical()
@@ -235,9 +242,8 @@ class Participant(object):
         result = ''
         for param in self.params:
             result += ';%s=%s' % (param, self.params[param])
-        result += ':%s' % self.uri
+        result += ':%s' % self.value
         return result
-
 
 class Event(object):
     def __init__(self, tzmap):
@@ -278,17 +284,23 @@ class Event(object):
     def set_dtstamp(self, value):
         self.set_property(value, 'dtstamp', 'DTSTAMP:%s')
     dtstamp = property(get_dtstamp, set_dtstamp)
-    
+   
     def get_dtstart(self):
+        """
+        starts with a ':' in most cases as this can have parameters (for all-day events)
+        """
         return self.get_property('dtstart')
     def set_dtstart(self, value):
-        self.set_property(value, 'dtstart', 'DTSTART:%s')
+        self.set_property(value, 'dtstart', 'DTSTART%s')
     dtstart = property(get_dtstart, set_dtstart)
     
     def get_dtend(self):
+        """
+        starts with a ':' in most cases as this can have parameters (for all-day events)
+        """
         return self.get_property('dtend')
     def set_dtend(self, value):
-        self.set_property(value, 'dtend', 'DTEND:%s')
+        self.set_property(value, 'dtend', 'DTEND%s')
     dtend = property(get_dtend, set_dtend)
     
     def get_summary(self):
@@ -333,7 +345,10 @@ class Event(object):
         elif line.startswith('X-GWRECORDID:'):
             self.gwrecordid = line[len('X-GWRECORDID:'):]
         elif line.startswith('DTSTAMP:'):
-            self.dtstamp = self.datetime_to_utc(line[len('DTSTAMP'):])
+            utc = self.datetime_to_utc(line[len('DTSTAMP'):])
+            if utc.startswith(':'):
+                utc = utc[1:]
+            self.dtstamp = utc
         elif line.startswith('SUMMARY:'):
             self.summary = line[len('SUMMARY:'):]
         elif line.startswith('LOCATION:'):
@@ -343,36 +358,33 @@ class Event(object):
         elif line.startswith('STATUS:'):
             self.status = line[len('STATUS:'):]
         elif line.startswith('ORGANIZER'):
-            self.organizer = Participant(line[len('ORGANIZER'):])
+            self.organizer = ParametrizedValue(line[len('ORGANIZER'):])
         elif line.startswith('ATTENDEE'):
-            self.attendees.append(Participant(line[len('ATTENDEE'):]))
+            self.attendees.append(ParametrizedValue(line[len('ATTENDEE'):]))
         else:
             # Don't add lines if we got a property: the line is
             # auto-added in the property setter
             self.lines.extend(real_lines)
 
     def datetime_to_utc(self,local):
-        if local.startswith(";TZID="):
+        value = ParametrizedValue(local)
+        if 'TZID' in value.params:
             # We got a localized time, search for the timezone definition
             # we extracted from the calendar and convert to UTC
-            tzid = local[len(';TZID='):local.rfind(":")]
-            value = local[local.rfind(':') + 1:]
-
+            tzid = value.params['TZID']
+            
             tz = self.tzmap[tzid.lower()]
-            dt = datetime.datetime.strptime(value, '%Y%m%dT%H%M%S')
+            dt = datetime.datetime.strptime(value.value, '%Y%m%dT%H%M%S')
             utc_dt = dt - tz.utcoffset(dt);
-            utc = utc_dt.strftime('%Y%m%dT%H%M%SZ')
-        elif local.startswith(':'):
-            value = local[1:]
-            if value.endswith('Z'):
-                # We already have UTC: no need for conversion
-                utc = value
-            else:
-                # No time zone indication: assume it's local time
-                dt = time.strptime(value, '%Y%m%dT%H%M%S')
-                utc_dt = time.gmtime(time.mktime(dt))
-                utc = time.strftime('%Y%m%dT%H%M%SZ', utc_dt)
-        return utc
+            value.value = utc_dt.strftime('%Y%m%dT%H%M%SZ')
+            del value.params['TZID']
+        elif not value.value.endswith('Z') and value.value.find('T') >= 0:
+            # No time zone indication: assume it's local time
+            dt = time.strptime(value.value, '%Y%m%dT%H%M%S')
+            utc_dt = time.gmtime(time.mktime(dt))
+            utc = time.strftime('%Y%m%dT%H%M%SZ', utc_dt)
+
+        return value.to_ical()
 
     def to_ical(self):
         attendees_lines = []
