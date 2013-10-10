@@ -1,0 +1,124 @@
+#!/usr/bin/env python
+
+# groupwise-ics: synchronize GroupWise calendar to ICS file and back
+# Copyright (C) 2013  Cedric Bosdonnat <cedric@bosdonnat.fr>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import pyinotify
+import os.path
+import os
+import optparse
+import sys
+import shutil
+import cal
+
+def get_file_content(path):
+    fd = open(path, 'r')
+    buf = fd.read()
+    fd.close()
+    return buf
+
+class EventHandler(pyinotify.ProcessEvent):
+    def my_init(self, old_path = None):
+        self.old_path = old_path
+
+    def calendar_changed(self, path):
+        # Diff the calendars
+        old = cal.Calendar(get_file_content(self.old_path))
+        new = cal.Calendar(get_file_content(path))
+        (changed, removed, added, unchanged) = old.diff(new)
+
+        # TODO Email the changes
+        print 'Processing calendar change: (changed: %d, removed: %d, added: %d, unchanged: %d)' % \
+                (len(changed), len(removed), len(added), len(unchanged))
+
+        # Roll the cached calendar
+        shutil.copy(path, self.old_path)
+
+    def process_IN_MODIFY(self, event):
+        self.calendar_changed(event.pathname)
+
+    def process_IN_MOVED_TO(self, event):
+        self.calendar_changed(event.pathname)
+
+    def process_default(self, event):
+        print 'Unhandled event: %s' % (event.maskname)
+
+class CmpName:
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self, event):
+        if (getattr(event, 'name') is None):
+            return False
+        return self.name  == event.name
+
+def watch_calendar(cached_calendar, calendar, daemon = False, log = None, pid = None):
+    wm = pyinotify.WatchManager()
+
+    # Evolution at least triggers the IN_MOVED_TO event. It writes to a hidden
+    # file and then moves it to the definitive target.
+    # Vim does something similar: writes to the tmp file and then creates the
+    # target file. So the event to monitor here is IN_CLOSE_WRITE
+    # gedit would get both events
+    mask = pyinotify.IN_MOVED_TO | pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MODIFY
+
+    print 'Watching: %s' % calendar
+    notifier = pyinotify.Notifier(wm)
+    notifier.coalesce_events()
+    basename = os.path.basename(calendar)
+    dirname = os.path.dirname(calendar)
+    wdd = wm.add_watch(dirname, mask, EventHandler(pyinotify.ChainIfTrue(
+                                        func=CmpName(basename)),
+                                            old_path = cached_calendar))
+
+    notifier.loop()
+    return 0
+
+def get_path(path):
+    result = os.path.expanduser(os.path.expandvars(path))
+    if not result.startswith('/'):
+        result = os.path.join(os.getcwd(), result)
+    return result
+
+def main(args):
+    usage_str = 'usage: %prog [options]'
+    parser = optparse.OptionParser(usage = usage_str)
+
+    parser.add_option('--cached-ics', dest='cached',
+                      default=None,
+                      metavar="FILE",
+                      help='iCalendar file against which to diff the'
+                           'monitored iCalendat file')
+    parser.add_option('--ics', dest='ics',
+                      default=None,
+                      metavar="FILE",
+                      help='iCalendar file that will be monitored')
+
+    (options, args) = parser.parse_args()
+
+    cached = options.cached
+    ics = options.ics
+
+    if cached is None:
+        parser.error('--cached-ics is required')
+    if ics is None:
+        parser.error('--ics is required')
+
+    return watch_calendar(get_path(cached), get_path(ics))
+
+if __name__ == '__main__':
+    ret = main(sys.argv)
+    sys.exit(ret)

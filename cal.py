@@ -74,6 +74,10 @@ class Calendar(object):
         '''
         Searches for differences between this calendar (origin)
         and the one passed as parameter.
+
+        @result: (changed, removed, added, unchanged) where all items
+                 in the tupple is a dictionary with a unique ID as key
+                 and the event as value.
         '''
 
         # First search for changed or removed events
