@@ -16,90 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import imaplib
-import email
 import optparse
 import sys
-from cal import Calendar, Event
-from datetime import datetime
-
-class IMAPConnection:
-    def __init__(self, server):
-        self.conn = imaplib.IMAP4_SSL(server)
-
-    def connect(self, login, passwd, mailbox):
-        self.conn.login(login, passwd)
-        self.conn.select(mailbox)
-
-    def get_mails_ids(self):
-        err, ids = self.conn.search(None, '(ALL)')
-        return ids[0].split()
-    
-    @staticmethod
-    def get_ical_from_multipart(mail):
-        event = None
-        if mail.is_multipart():
-            for part in mail.get_payload():
-                if part.is_multipart():
-                    event = get_ical_from_multipart(part)
-                else:
-                    if part.get_content_type().startswith('text/calendar'):
-                        # We got the ical part of the multipart!
-                        event = part.get_payload()
-        elif mail.get_content_type().startswith('text/calendar'):
-            event = mail.get_payload()
-        return event
-
-
-    def get_event(self, mail_id):
-        # TODO Caching the events would be needed,
-        # though we still need to find a way to get changed appointments
-        err, data = self.conn.fetch(mail_id, '(RFC822)')
-        mail = email.message_from_string(data[0][1])
-        ical = self.get_ical_from_multipart(mail)
-        calendar = Calendar(ical)
-        event = None
-        if len(calendar.events) > 0:
-            event = calendar.events[0]
-        return event
-
-    def dump(self, path):
-        events = {}
-        ids = self.get_mails_ids( );
-        for mail_id in ids:
-            event = self.get_event(mail_id)
-            dtstamp = datetime.strptime(event.dtstamp, '%Y%m%dT%H%M%SZ')
-            uid = event.uid
-            if event.gwrecordid is not None:
-                uid = event.gwrecordid
-
-            if uid is not None:
-                if uid in events and \
-                        datetime.strptime(events[uid].dtstamp, '%Y%m%dT%H%M%SZ') <= dtstamp:
-                    events[uid] = event
-                elif uid not in events:
-                    events[uid] = event
-
-        if path is not None:
-            expanded_path = os.path.expanduser(os.path.expandvars(path))
-            if not os.path.isdir(os.path.dirname(expanded_path)):
-                os.makedirs(os.path.dirname(expanded_path))
-            fp = open(expanded_path, 'w')
-        else:
-            fp = sys.stdout
-
-        fp.write('BEGIN:VCALENDAR\r\n')
-        fp.write('PRODID:-//SUSE Hackweek//NONSGML groupwise-to-ics//EN\r\n')
-        fp.write('VERSION:2.0\r\n')
-
-        for eventid in events:
-            event = events[eventid]
-            fp.write(event.to_ical())
-
-        fp.write('END:VCALENDAR\r\n')
-        if path is not None:
-            fp.close()
-
+from connection import GWConnection
 
 def main(args):
     usage_str = 'usage: %prog [options]'
@@ -137,9 +56,9 @@ def main(args):
         parser.error('--gw-pass is required')
 
     # TODO More error handling
-    cnx = IMAPConnection(options.server)
-    cnx.connect(options.login, options.passwd, options.mailbox )
-    cnx.dump( options.ics )
+    cnx = GWConnection(options.server)
+    cnx.connect(options.login, options.passwd, options.mailbox)
+    cnx.dump(options.ics)
 
     return 0
 

@@ -23,6 +23,7 @@ import optparse
 import sys
 import shutil
 import cal
+from connection import GWConnection
 
 def get_file_content(path):
     fd = open(path, 'r')
@@ -31,8 +32,9 @@ def get_file_content(path):
     return buf
 
 class EventHandler(pyinotify.ProcessEvent):
-    def my_init(self, old_path = None):
+    def my_init(self, old_path = None, connection = None):
         self.old_path = old_path
+        self.connection = None
 
     def calendar_changed(self, path):
         # Diff the calendars
@@ -43,6 +45,20 @@ class EventHandler(pyinotify.ProcessEvent):
         # TODO Email the changes
         print 'Processing calendar change: (changed: %d, removed: %d, added: %d, unchanged: %d)' % \
                 (len(changed), len(removed), len(added), len(unchanged))
+
+        if self.connection is None:
+            print "No GroupWise connection defined: unable to push the changes"
+            return
+
+        for item in changed:
+            pass
+
+        for item in removed:
+            event = removed[item]
+            # Need to call GWSoap.cancel_event()
+
+        for item in added:
+            pass
 
         # Roll the cached calendar
         shutil.copy(path, self.old_path)
@@ -65,7 +81,7 @@ class CmpName:
             return False
         return self.name  == event.name
 
-def watch_calendar(cached_calendar, calendar, daemon = False, log = None, pid = None):
+def watch_calendar(cached_calendar, calendar, cnx):
     wm = pyinotify.WatchManager()
 
     # Evolution at least triggers the IN_MOVED_TO event. It writes to a hidden
@@ -82,7 +98,8 @@ def watch_calendar(cached_calendar, calendar, daemon = False, log = None, pid = 
     dirname = os.path.dirname(calendar)
     wdd = wm.add_watch(dirname, mask, EventHandler(pyinotify.ChainIfTrue(
                                         func=CmpName(basename)),
-                                            old_path = cached_calendar))
+                                            old_path = cached_calendar,
+                                            connection = cnx))
 
     notifier.loop()
     return 0
@@ -106,6 +123,20 @@ def main(args):
                       default=None,
                       metavar="FILE",
                       help='iCalendar file that will be monitored')
+    parser.add_option('--gw-imap', dest = 'imap',
+                      default = None,
+                      help = 'GroupWise IMAP server address. The server'
+                             'is expected to accept SSL connections')
+    parser.add_option('--gw-login', dest = 'login',
+                      default = None,
+                      help = 'Login on the GroupWise server')
+    parser.add_option('--gw-pass', dest = 'passwd',
+                      default = None,
+                      help = 'Password on the GroupWise server')
+    parser.add_option('--gw-mailbox', dest = 'mailbox',
+                      default = 'Calendar',
+                      help = 'Mailbox containing the calendar events to drop'
+                             'as iCalendar file. (default: Calendar)')
 
     (options, args) = parser.parse_args()
 
@@ -117,7 +148,15 @@ def main(args):
     if ics is None:
         parser.error('--ics is required')
 
-    return watch_calendar(get_path(cached), get_path(ics))
+    # TODO Add error handling
+    gwcnx = None
+    if options.imap is not None and \
+            options.login is not None and \
+            options.passwd is not None:
+        gwcnx = GWConnection(options.imap)
+        gwcnx.connect(options.login, options.passwd, options.mailbox)
+
+    return watch_calendar(get_path(cached), get_path(ics), cnx = gwcnx)
 
 if __name__ == '__main__':
     ret = main(sys.argv)

@@ -77,7 +77,9 @@ class Calendar(object):
 
         @result: (changed, removed, added, unchanged) where all items
                  in the tupple is a dictionary with a unique ID as key
-                 and the event as value.
+                 and the event as value. Items in the changed dictionary
+                 are dictionaries with 'old' and 'new' keys to store both
+                 the old and new version of the event
         '''
 
         # First search for changed or removed events
@@ -92,7 +94,7 @@ class Calendar(object):
                 if orig_events[uid] == dest_events[uid]:
                     unchanged[uid] = orig_events[uid]
                 else:
-                    changed[uid] = dest_events[uid]
+                    changed[uid] = {'old': orig_events[uid], 'new': dest_events[uid]}
             else:
                 removed[uid] = orig_events[uid]
             
