@@ -18,6 +18,8 @@
 
 import optparse
 import sys
+import os
+import os.path
 from connection import GWConnection
 
 def main(args):
@@ -58,7 +60,10 @@ def main(args):
     # TODO More error handling
     cnx = GWConnection(options.server)
     cnx.connect(options.login, options.passwd, options.mailbox)
-    cnx.dump(options.ics)
+    ics = options.ics
+    if ics is not None and not ics.startswith('/'):
+        ics = os.path.join(os.getcwd(), ics)
+    cnx.dump(ics)
 
     return 0
 

@@ -37,7 +37,7 @@ class GWConnection:
     def get_mails_ids(self):
         err, ids = self.imap.search(None, '(ALL)')
         return ids[0].split()
-    
+
     @staticmethod
     def get_ical_from_multipart(mail):
         event = None
@@ -87,8 +87,9 @@ class GWConnection:
 
         if path is not None:
             expanded_path = os.path.expanduser(os.path.expandvars(path))
-            if not os.path.isdir(os.path.dirname(expanded_path)):
-                os.makedirs(os.path.dirname(expanded_path))
+            dirname = os.path.dirname(expanded_path)
+            if not os.path.isdir(dirname):
+                os.makedirs(dirname)
             fp = open(expanded_path, 'w')
         else:
             fp = sys.stdout
@@ -136,7 +137,7 @@ class GwSoapClient(object):
 
         body = '%s%s%s' % (header, request, footer)
         return body
-  
+
     def request(self, request, body):
         headers = {'SOAPAction': request, \
                    'Content-Type': 'text/xml;charset=utf-8'}
@@ -192,12 +193,12 @@ class GwSoapClient(object):
         # autoconnect
         if self.session is None:
             self.connect()
-        
+
         if parent_id is None:
             parent_id = 'folders'
         request = '<ns2:getFolderListRequest><ns2:parent>%s</ns2:parent></ns2:getFolderListRequest>' % parent_id
         response = self.request('getFolderListRequest', request)
-        
+
         root = ET.fromstring(response)
         ns = {'gwm': 'http://schemas.novell.com/2005/01/GroupWise/methods', \
               'gwt': 'http://schemas.novell.com/2005/01/GroupWise/types'}
