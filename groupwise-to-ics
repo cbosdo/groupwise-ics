@@ -22,20 +22,21 @@ import os
 import os.path
 from connection import GWConnection
 
+def get_path(path):
+    newpath = path
+    if path is not None and not path.startswith('/'):
+        newpath = os.path.join(os.getcwd(), path)
+        new_path = os.path.expanduser(os.path.expandvars(newpath))
+    return newpath
+
 def main(args):
     usage_str = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage = usage_str)
 
-    parser.add_option('--gw-imap', dest = 'server',
-                      default = None,
-                      help = 'GroupWise IMAP server address. The server'
-                             'is expected to accept SSL connections')
-    parser.add_option('--gw-login', dest = 'login',
-                      default = None,
-                      help = 'Login on the GroupWise server')
-    parser.add_option('--gw-pass', dest = 'passwd',
-                      default = None,
-                      help = 'Password on the GroupWise server')
+    parser.add_option('--config', dest='config',
+                      default=None,
+                      metavar="FILE",
+                      help='Configuration file for the GroupWise connection details')
     parser.add_option('--gw-mailbox', dest = 'mailbox',
                       default = 'Calendar',
                       help = 'Mailbox containing the calendar events to drop'
@@ -48,21 +49,23 @@ def main(args):
 
     (options, args) = parser.parse_args()
 
-    if options.server is None:
-        parser.error('--gw-imap is required')
-    
-    if options.login is None:
-        parser.error('--gw-login is required')
-    
-    if options.passwd is None:
-        parser.error('--gw-pass is required')
+    if options.config is None:
+        parser.error('--gw-config is required')
+ 
+    config = {}
+    execfile(get_path(options.config), {}, config)
+
+    if config['gw']['imap'] is None:
+        parser.error('Configuration file need to define gw.imap')
+    if config['gw']['login'] is None:
+        parser.error('Configuration file need to define gw.login')
+    if config['gw']['password'] is None:
+        parser.error('Configuration file need to define gw.password')
 
     # TODO More error handling
-    cnx = GWConnection(options.server)
-    cnx.connect(options.login, options.passwd, options.mailbox)
-    ics = options.ics
-    if ics is not None and not ics.startswith('/'):
-        ics = os.path.join(os.getcwd(), ics)
+    cnx = GWConnection(config['gw']['imap'])
+    cnx.connect(config['gw']['login'], config['gw']['password'], options.mailbox)
+    ics = get_path(options.ics)
     cnx.dump(ics)
 
     return 0

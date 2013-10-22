@@ -85,11 +85,10 @@ class GWConnection:
                     events[uid] = event
 
         if path is not None:
-            expanded_path = os.path.expanduser(os.path.expandvars(path))
-            dirname = os.path.dirname(expanded_path)
+            dirname = os.path.dirname(path)
             if not os.path.isdir(dirname):
                 os.makedirs(dirname)
-            fp = open(expanded_path, 'w')
+            fp = open(path, 'w')
         else:
             fp = sys.stdout
 

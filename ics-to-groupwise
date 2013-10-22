@@ -123,16 +123,10 @@ def main(args):
                       default=None,
                       metavar="FILE",
                       help='iCalendar file that will be monitored')
-    parser.add_option('--gw-imap', dest = 'imap',
-                      default = None,
-                      help = 'GroupWise IMAP server address. The server'
-                             'is expected to accept SSL connections')
-    parser.add_option('--gw-login', dest = 'login',
-                      default = None,
-                      help = 'Login on the GroupWise server')
-    parser.add_option('--gw-pass', dest = 'passwd',
-                      default = None,
-                      help = 'Password on the GroupWise server')
+    parser.add_option('--config', dest='config',
+                      default=None,
+                      metavar="FILE",
+                      help='Configuration file for the GroupWise connection details')
     parser.add_option('--gw-mailbox', dest = 'mailbox',
                       default = 'Calendar',
                       help = 'Mailbox containing the calendar events to drop'
@@ -147,14 +141,26 @@ def main(args):
         parser.error('--cached-ics is required')
     if ics is None:
         parser.error('--ics is required')
+ 
+    imap = None
+    login = None
+    passwd = None
+    config_path = get_path(options.config)
+    if config_path is not None and os.path.isfile(config_path):
+        config = {}
+        execfile(get_path(options.config), {}, config)
+
+        imap = config['gw']['imap']
+        login = config['gw']['login']
+        passwd = config['gw']['password']
 
     # TODO Add error handling
     gwcnx = None
-    if options.imap is not None and \
-            options.login is not None and \
-            options.passwd is not None:
-        gwcnx = GWConnection(options.imap)
-        gwcnx.connect(options.login, options.passwd, options.mailbox)
+    if imap is not None and \
+            login is not None and \
+            passwd is not None:
+        gwcnx = GWConnection(imap)
+        gwcnx.connect(login, passwd, options.mailbox)
 
     return watch_calendar(get_path(cached), get_path(ics), cnx = gwcnx)
 

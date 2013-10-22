@@ -1,0 +1,7 @@
+# Keep this file only readable by you
+
+gw = {
+    'imap'      : 'your.imap.groupwise.host',
+    'login'     : 'your.username',
+    'password'  : 'your_pass'
+}
