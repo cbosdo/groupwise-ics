@@ -44,7 +44,7 @@ class GWConnection:
         if mail.is_multipart():
             for part in mail.get_payload():
                 if part.is_multipart():
-                    event = get_ical_from_multipart(part)
+                    event = GWConnection.get_ical_from_multipart(part)
                 else:
                     if part.get_content_type().startswith('text/calendar'):
                         # We got the ical part of the multipart!
@@ -59,7 +59,6 @@ class GWConnection:
         # though we still need to find a way to get changed appointments
         err, data = self.imap.fetch(mail_id, '(RFC822)')
         mail = email.message_from_string(data[0][1])
-        sys.stderr.write('---\n%s---\n' % mail)
         ical = self.get_ical_from_multipart(mail)
         calendar = Calendar(ical)
         event = None
