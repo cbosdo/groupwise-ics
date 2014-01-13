@@ -46,6 +46,10 @@ def main(args):
                       metavar="FILE",
                       help='iCalendar file that will be created '
                            '(if not used, will output ics to stdout)')
+    parser.add_option('--debug', dest='debug',
+                      action='store_true',
+                      default=False,
+                      help='Show debug messages')
 
     (options, args) = parser.parse_args()
 
@@ -63,7 +67,7 @@ def main(args):
         parser.error('Configuration file need to define gw.password')
 
     # TODO More error handling
-    cnx = GWConnection(config['gw']['imap'])
+    cnx = GWConnection(config['gw']['imap'], options.debug)
     cnx.connect(config['gw']['login'], config['gw']['password'], options.mailbox)
     ics = get_path(options.ics)
     cnx.dump(ics)

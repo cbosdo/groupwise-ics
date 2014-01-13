@@ -27,8 +27,14 @@ import httplib
 import xml.etree.ElementTree as ET
 
 class GWConnection:
-    def __init__(self, server):
+    def __init__(self, server, debug = False):
+        self.is_debug = debug
         self.imap = imaplib.IMAP4_SSL(server)
+
+    def debug(self, message):
+        if self.is_debug:
+            print >> sys.stderr, 'DEBUG %s\n' % (message)
+
 
     def connect(self, login, passwd, mailbox):
         self.imap.login(login, passwd)
@@ -60,6 +66,7 @@ class GWConnection:
         err, data = self.imap.fetch(mail_id, '(RFC822)')
         mail = email.message_from_string(data[0][1])
         ical = self.get_ical_from_multipart(mail)
+        self.debug('\n>>> %s\n<<<' % ical)
         calendar = Calendar(ical)
         event = None
         if len(calendar.events) > 0:

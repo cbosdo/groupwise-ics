@@ -124,7 +124,7 @@ class Timezone(datetime.tzinfo):
 
     def parseline(self, line):
         if line.startswith('TZID:'):
-            self.tzid = line[len('TZID:'):].lower()
+            self.tzid = line[len('TZID:'):].lower().translate(None, '"\'')
         elif self.component is None and line.startswith('BEGIN:'):
             value = line[len('BEGIN:'):]
             self.component = TZDetails(value);
@@ -375,6 +375,9 @@ class Event(object):
             # we extracted from the calendar and convert to UTC
             tzid = value.params['TZID']
             
+            # Strip the possible quotes from the tzid
+            tzid = tzid.translate(None, '"\'')
+
             tz = self.tzmap[tzid.lower()]
             dt = datetime.datetime.strptime(value.value, '%Y%m%dT%H%M%S')
             utc_dt = dt - tz.utcoffset(dt);
