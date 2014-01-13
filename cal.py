@@ -13,7 +13,6 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import os.path
 import datetime
 import time
 
@@ -97,7 +96,7 @@ class Calendar(object):
                     changed[uid] = {'old': orig_events[uid], 'new': dest_events[uid]}
             else:
                 removed[uid] = orig_events[uid]
-            
+
         # Then search for new events
         added = {}
         for uid in dest_events:
@@ -220,7 +219,7 @@ class ParametrizedValue(object):
                 key = param[:pos]
                 new_params[key] = param[pos + 1:]
         self.params = new_params
-    
+
     def set_params(self, value):
         self._params = {}
         # Upper case all keys to avoid potential problems
@@ -229,7 +228,7 @@ class ParametrizedValue(object):
     def get_params(self):
         return self._params;
     params = property(get_params, set_params)
-    
+
     def __eq__(self, other):
         params_equals = set(self.params.items()) ^ set(other.params.items())
         return self.value == other.value and len(params_equals) == 0
@@ -286,7 +285,7 @@ class Event(object):
     def set_dtstamp(self, value):
         self.set_property(value, 'dtstamp', 'DTSTAMP:%s')
     dtstamp = property(get_dtstamp, set_dtstamp)
-   
+
     def get_dtstart(self):
         """
         starts with a ':' in most cases as this can have parameters (for all-day events)
@@ -295,7 +294,7 @@ class Event(object):
     def set_dtstart(self, value):
         self.set_property(value, 'dtstart', 'DTSTART%s')
     dtstart = property(get_dtstart, set_dtstart)
-    
+
     def get_dtend(self):
         """
         starts with a ':' in most cases as this can have parameters (for all-day events)
@@ -304,31 +303,31 @@ class Event(object):
     def set_dtend(self, value):
         self.set_property(value, 'dtend', 'DTEND%s')
     dtend = property(get_dtend, set_dtend)
-    
+
     def get_summary(self):
         return self.get_property('summary')
     def set_summary(self, value):
         self.set_property(value, 'summary', 'SUMMARY:%s')
     summary = property(get_summary, set_summary)
-    
+
     def get_location(self):
         return self.get_property('location')
     def set_location(self, value):
         self.set_property(value, 'location', 'LOCATION:%s')
     location = property(get_location, set_location)
-    
+
     def get_description(self):
         return self.get_property('description')
     def set_description(self, value):
         self.set_property(value, 'description', 'DESCRIPTION:%s')
     description = property(get_description, set_description)
-    
+
     def get_status(self):
         return self.get_property('status')
     def set_status(self, value):
         self.set_property(value, 'status', 'STATUS:%s')
     status = property(get_status, set_status)
-    
+
     def get_organizer(self):
         return self.get_property('organizer')
     def set_organizer(self, value):
@@ -374,7 +373,7 @@ class Event(object):
             # We got a localized time, search for the timezone definition
             # we extracted from the calendar and convert to UTC
             tzid = value.params['TZID']
-            
+
             # Strip the possible quotes from the tzid
             tzid = tzid.translate(None, '"\'')
 
@@ -387,7 +386,7 @@ class Event(object):
             # No time zone indication: assume it's local time
             dt = time.strptime(value.value, '%Y%m%dT%H%M%S')
             utc_dt = time.gmtime(time.mktime(dt))
-            utc = time.strftime('%Y%m%dT%H%M%SZ', utc_dt)
+            value.value = time.strftime('%Y%m%dT%H%M%SZ', utc_dt)
 
         return value.to_ical()
 

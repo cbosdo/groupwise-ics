@@ -19,9 +19,8 @@
 import imaplib
 import email
 import sys
-from cal import Calendar, Event
+from cal import Calendar
 from datetime import datetime
-import os
 import os.path
 import httplib
 import xml.etree.ElementTree as ET
