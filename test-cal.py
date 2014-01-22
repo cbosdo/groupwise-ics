@@ -48,7 +48,7 @@ class CalendarTest(unittest.TestCase):
         dt = datetime.datetime(2013, 10, 8, 13, 0, 0)
         utc = dt - tz.utcoffset(dt)
         self.assertEqual(utc.strftime('%Y%m%dT%H%M%SZ'), '20131008T110000Z')
-    
+
     def test_parse_vtimezone_simple(self):
         data = ['TZID:/freeassociation.sourceforge.net/Tzfile/Europe/Paris',
                 'X-LIC-LOCATION:Europe/Paris',
@@ -78,6 +78,34 @@ class CalendarTest(unittest.TestCase):
         self.assertEqual(tz.changes, expected_changes)
         self.assertEqual(tz.tzid, '/freeassociation.sourceforge.net/Tzfile/Europe/Paris'.lower())
 
+    def test_timezone_rrule(self):
+        data = ['TZID:Mountain Standard Time',
+                'BEGIN:STANDARD',
+                'TZOFFSETFROM:-0600',
+                'TZOFFSETTO:-0700',
+                'DTSTART:20001102T020000',
+                'RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=11',
+                'TZNAME:Mountain Standard Time',
+                'END:STANDARD',
+                'BEGIN:DAYLIGHT',
+                'TZOFFSETFROM:-0700',
+                'TZOFFSETTO:-0600',
+                'DTSTART:20000309T020000',
+                'RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3',
+                'TZNAME:Mountain Daylight Time',
+                'END:DAYLIGHT']
+        tested = cal.Timezone()
+        for line in data:
+            tested.parseline(line)
+
+        # Test winter offset
+        actual = tested.utcoffset(datetime.datetime(2014, 1, 21, 9, 0, 0))
+        self.assertEqual(actual, datetime.timedelta(hours=-7))
+
+        # Test summer offset
+        actual = tested.utcoffset(datetime.datetime(2014, 6, 21, 9, 0, 0))
+        self.assertEqual(actual, datetime.timedelta(hours=-6))
+
     def test_parametrized_values_equals(self):
         parametrized_values1 = [ create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'ACCEPTED', 'RSVP': 'TRUE', \
@@ -87,7 +115,7 @@ class CalendarTest(unittest.TestCase):
                                                'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ) ]
         parametrized_values2 = [ create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
-                                               'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ), 
+                                               'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ),
                           create_parametrized_value( {'CUTYPE': 'INDIVIDUAL', 'ROLE': 'REQ-PARTICIPANT', \
                                                'PARTSTAT': 'ACCEPTED', 'RSVP': 'TRUE', \
                                                'CN': 'Joe HACKER', 'LANGUAGE': 'en'}, 'MAILTO:joe@hacker.com' ) ]
@@ -135,7 +163,7 @@ class CalendarTest(unittest.TestCase):
                                                           'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
                                                           'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ) ]
         self.assertEqual(parsed.events[0], expected_event)
-    
+
     def test_calendar_diff_added(self):
         data_old = '\r\n'.join(['BEGIN:VCALENDAR',
                             'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
@@ -161,7 +189,7 @@ class CalendarTest(unittest.TestCase):
                             'END:VEVENT',
                             'END:VCALENDAR'])
         old = cal.Calendar(data_old)
-        
+
         data_new = '\r\n'.join(['BEGIN:VCALENDAR',
                             'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
                             'VERSION:2.0',
@@ -234,7 +262,7 @@ class CalendarTest(unittest.TestCase):
                             'END:VEVENT',
                             'END:VCALENDAR'])
         old = cal.Calendar(data_old)
-        
+
         data_new = '\r\n'.join(['BEGIN:VCALENDAR',
                             'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
                             'VERSION:2.0',

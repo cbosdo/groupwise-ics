@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime
 import time
+from dateutil import rrule
 
 class LineUnwrapper(object):
     def __init__(self, s):
@@ -114,6 +115,19 @@ class Calendar(object):
             by_uid[uid] = event
         return by_uid
 
+    def to_ical(self):
+        out = ''
+
+        out  = 'BEGIN:VCALENDAR\r\n'
+        out += 'PRODID:-//SUSE Hackweek//NONSGML groupwise-to-ics//EN\r\n'
+        out += 'VERSION:2.0\r\n'
+
+        for event in self.events:
+            out += event.to_ical()
+
+        out += 'END:VCALENDAR\r\n'
+        return out
+
 
 class Timezone(datetime.tzinfo):
     def __init__(self):
@@ -126,36 +140,45 @@ class Timezone(datetime.tzinfo):
             self.tzid = line[len('TZID:'):].lower().translate(None, '"\'')
         elif self.component is None and line.startswith('BEGIN:'):
             value = line[len('BEGIN:'):]
-            self.component = TZDetails(value);
+            self.component = TZDetails(value)
         elif self.component is not None:
             if line.startswith('END:'):
                 self.changes.append(self.component)
                 sorted(self.changes, key = lambda change: change.start)
                 self.component = None
             else:
-                self.component.parseline(line);
-
-    def findchange(self, dt):
-        result = None
-        for change in self.changes:
-            if dt >= change.start:
-                result = change
-            else:
-                if result is None:
-                    return change
-                else:
-                    return result
-        return result
+                self.component.parseline(line)
 
     def utcoffset(self, dt):
-        change = self.findchange(dt)
-        if change is not None:
-            if dt < change.start:
-                return change.offsetfrom
+        offset = None
+        # Build a list of sorted changes
+        all_changes = {}
+        now = datetime.datetime.now()
+        for change in self.changes:
+            if change.start:
+                all_changes[change.start] = change
             else:
-                return change.offsetto
-        else:
-            return None
+                it = iter(change.rrule)
+                try:
+                    date = it.next()
+                    # Who plans meetings in 10 years from now?
+                    while date.year < now.year + 10:
+                        date = it.next()
+                        all_changes[date] = change
+                except StopIteration:
+                    pass
+
+        # Find the matching change
+        for date in sorted(all_changes.keys()):
+            if dt >= date:
+                offset = all_changes[date].offsetto
+            else:
+                if offset is None:
+                    return all_changes[date].offsetfrom
+                else:
+                    return offset
+        return offset
+
 
 class TZDetails(object):
     def __init__(self, kind):
@@ -164,6 +187,7 @@ class TZDetails(object):
         self.offsetfrom = 0
         self.offsetto = 0
         self.start = None
+        self.rrule = None
 
     def parseline(self, line):
         if line.startswith('TZNAME:'):
@@ -171,13 +195,20 @@ class TZDetails(object):
         if line.startswith('DTSTART:'):
             value = line[len('DTSTART:'):]
             self.start = datetime.datetime.strptime(value, '%Y%m%dT%H%M%S')
+            if self.rrule:
+                self.rrule = rrule.rrulestr(self.rrule, dtstart=self.start)
+                self.start = None
         if line.startswith('TZOFFSETFROM:'):
             value = line[len('TZOFFSETFROM:'):]
             self.offsetfrom = self.parseoffset(value)
         if line.startswith('TZOFFSETTO:'):
             value = line[len('TZOFFSETTO:'):]
             self.offsetto = self.parseoffset(value)
-        # TODO Handle the possible RRULE
+        if line.startswith('RRULE:'):
+            self.rrule = line[len('RRULE:'):]
+            if self.start:
+                self.rrule = rrule.rrulestr(self.rrule, dtstart=self.start)
+                self.start = None
 
     def parseoffset(self, value):
         try:
@@ -367,7 +398,7 @@ class Event(object):
             # auto-added in the property setter
             self.lines.extend(real_lines)
 
-    def datetime_to_utc(self,local):
+    def datetime_to_utc(self, local):
         value = ParametrizedValue(local)
         if 'TZID' in value.params:
             # We got a localized time, search for the timezone definition
