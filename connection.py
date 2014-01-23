@@ -23,6 +23,7 @@ from datetime import datetime
 import os.path
 import httplib
 import xml.etree.ElementTree as ET
+import shutil
 
 class GWConnection:
     def __init__(self, server, debug = False):
@@ -42,21 +43,44 @@ class GWConnection:
         err, ids = self.imap.search(None, '(ALL)')
         return ids[0].split()
 
-    def get_event(self, mail_id):
+    def get_event(self, mail_id, attach_write_func):
         # TODO Caching the events would be needed,
         # though we still need to find a way to get changed appointments
         err, data = self.imap.fetch(mail_id, '(RFC822)')
-        calendar = Calendar(data[0][1])
+        calendar = Calendar(data[0][1], attach_write_func)
         event = None
         if len(calendar.events) > 0:
             event = calendar.events[0]
         return event
 
     def dump(self, path):
+
+        dirname = None
+        attachdir_path = os.path.join(os.getcwd(), 'attachments')
+        if path is not None:
+            dirname = os.path.dirname(path)
+            attachdir_path = os.path.join(dirname, 'attachments')
+            if not os.path.isdir(dirname):
+                os.makedirs(dirname)
+
+        def attach_write_func(name, content):
+            attach_path = os.path.join(attachdir_path, name)
+            os.makedirs(os.path.dirname(attach_path))
+            fdescr = open(attach_path, 'w')
+            fdescr.write(content)
+            fdescr.close()
+
+            return 'file://%s' % attach_path
+
+        # Cleanup existing files
+        if (os.path.isdir(attachdir_path)):
+            shutil.rmtree(attachdir_path)
+        os.makedirs(attachdir_path)
+
         events = {}
         ids = self.get_mails_ids( );
         for mail_id in ids:
-            event = self.get_event(mail_id)
+            event = self.get_event(mail_id, attach_write_func)
             dtstamp = datetime.strptime(event.dtstamp, '%Y%m%dT%H%M%SZ')
             uid = event.uid
             if event.gwrecordid is not None:
@@ -70,9 +94,6 @@ class GWConnection:
                     events[uid] = event
 
         if path is not None:
-            dirname = os.path.dirname(path)
-            if not os.path.isdir(dirname):
-                os.makedirs(dirname)
             fp = open(path, 'w')
         else:
             fp = sys.stdout

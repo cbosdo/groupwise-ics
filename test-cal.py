@@ -185,15 +185,18 @@ class CalendarTest(unittest.TestCase):
 
     def test_parse_mail_attachement(self):
         mail = load_from_file('tests/attach.eml')
-        tested = cal.Calendar(mail)
+        files = {}
+        def output_files(name, content):
+            files[name] = content
+            return 'file:///mockup/%s' % name
+
+        tested = cal.Calendar(mail, output_files)
         tested_event = tested.events[0]
 
-        expected = create_parametrized_value({'FMTTYPE': 'text/plain',
-                                              'X-FILENAME': 'foo.txt',
-                                              'ENCODING': 'BASE64',
-                                              'VALUE': 'BINARY'},
-                                             'c29tZSBjb250ZW50')
+        expected_name = 'recordid/foo.txt'
+        expected = create_parametrized_value({}, 'file:///mockup/%s' % expected_name)
         self.assertEqual(tested_event.attachments[0], expected)
+        self.assertEqual(files[expected_name], 'some content')
 
     def test_calendar_diff_added(self):
         data_old = '\r\n'.join(['BEGIN:VCALENDAR',

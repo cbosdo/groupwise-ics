@@ -17,6 +17,7 @@ import datetime
 import time
 from dateutil import rrule
 import email
+import os.path
 
 class LineUnwrapper(object):
     def __init__(self, s):
@@ -43,7 +44,7 @@ class LineUnwrapper(object):
                 self.saved = line.strip()
 
 class Calendar(object):
-    def __init__(self, mailstr):
+    def __init__(self, mailstr, attach_write_func=None):
 
         self.events = []
         mail = email.message_from_string(mailstr)
@@ -61,12 +62,12 @@ class Calendar(object):
                     if filename:
                         attachment['filename'] = filename
                     attachment['content-type'] = part.get_content_type()
-                    attachment['payload'] = part.get_payload()
+                    attachment['payload'] = part.get_payload(decode=True)
                     attachments.append(attachment)
 
-        self.parse(ical, attachments)
+        self.parse(ical, attachments, attach_write_func)
 
-    def parse(self, ical, attachments):
+    def parse(self, ical, attachments, attach_write_func=None):
         content = LineUnwrapper(ical)
         vtimezone = None
         vevent = None
@@ -86,7 +87,8 @@ class Calendar(object):
                     self.events.append(vevent)
                     vevent = None
                 else:
-                    vevent.parseline(real_lines, line, attachments)
+                    vevent.parseline(real_lines, line, attachments,
+                                     attach_write_func)
             elif vtimezone is None and line == 'BEGIN:VEVENT':
                 vevent = Event(tzmap)
 
@@ -386,7 +388,7 @@ class Event(object):
         self.set_property(value, 'organizer', 'ORGANIZER%s')
     organizer = property(get_organizer, set_organizer)
 
-    def parseline(self, real_lines, line, attachments):
+    def parseline(self, real_lines, line, attachments, attach_write_func=None):
         if line.startswith('DTSTART'):
             value = line[len('DTSTART'):]
             self.dtstart = self.datetime_to_utc(value)
@@ -419,20 +421,13 @@ class Event(object):
             if attach.value.lower() == 'cid:...':
                 for attachment in attachments:
                     attach = ParametrizedValue('')
-                    params = {'FMTTYPE': attachment['content-type'],
-                              'ENCODING': 'BASE64',
-                              'VALUE': 'BINARY'}
+                    filename = 'unnamed'
                     if attachment['filename']:
-                        params['X-FILENAME'] = attachment['filename']
-                    attach.set_params(params)
-                    # TODO Here we assume our content is already base64-encoded
-                    # which is bad obviously
+                        filename = attachment['filename']
+                    if self.gwrecordid:
+                        filename = os.path.join(self.gwrecordid, filename)
                     payload = attachment['payload']
-                    lines = []
-                    for line in payload.splitlines():
-                        lines.append(' %s' % line)
-                    payload = '\r\n'.join(lines)
-                    attach.value = '\r\n%s' % payload
+                    attach.value = attach_write_func(filename, payload)
                     self.attachments.append(attach)
         else:
             # Don't add lines if we got a property: the line is
