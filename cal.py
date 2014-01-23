@@ -16,6 +16,7 @@
 import datetime
 import time
 from dateutil import rrule
+import email
 
 class LineUnwrapper(object):
     def __init__(self, s):
@@ -42,11 +43,30 @@ class LineUnwrapper(object):
                 self.saved = line.strip()
 
 class Calendar(object):
-    def __init__(self, ical):
-        self.events = []
-        self.parse(ical)
+    def __init__(self, mailstr):
 
-    def parse(self, ical):
+        self.events = []
+        mail = email.message_from_string(mailstr)
+        ical = None
+        attachments = []
+
+        for part in mail.walk():
+            if part.get_content_type().startswith('text/calendar'):
+                ical = part.get_payload()
+            else:
+                disposition = part.get('Content-Disposition')
+                if disposition and disposition.startswith('attachment'):
+                    attachment = {}
+                    filename = part.get_filename()
+                    if filename:
+                        attachment['filename'] = filename
+                    attachment['content-type'] = part.get_content_type()
+                    attachment['payload'] = part.get_payload()
+                    attachments.append(attachment)
+
+        self.parse(ical, attachments)
+
+    def parse(self, ical, attachments):
         content = LineUnwrapper(ical)
         vtimezone = None
         vevent = None
@@ -66,7 +86,7 @@ class Calendar(object):
                     self.events.append(vevent)
                     vevent = None
                 else:
-                    vevent.parseline(real_lines, line)
+                    vevent.parseline(real_lines, line, attachments)
             elif vtimezone is None and line == 'BEGIN:VEVENT':
                 vevent = Event(tzmap)
 
@@ -283,6 +303,7 @@ class Event(object):
         self.properties = {}
         self.tzmap = tzmap
         self.attendees = []
+        self.attachments = []
 
     def get_property(self, key):
         value = None
@@ -365,7 +386,7 @@ class Event(object):
         self.set_property(value, 'organizer', 'ORGANIZER%s')
     organizer = property(get_organizer, set_organizer)
 
-    def parseline(self, real_lines, line):
+    def parseline(self, real_lines, line, attachments):
         if line.startswith('DTSTART'):
             value = line[len('DTSTART'):]
             self.dtstart = self.datetime_to_utc(value)
@@ -393,6 +414,26 @@ class Event(object):
             self.organizer = ParametrizedValue(line[len('ORGANIZER'):])
         elif line.startswith('ATTENDEE'):
             self.attendees.append(ParametrizedValue(line[len('ATTENDEE'):]))
+        elif line.startswith('ATTACH'):
+            attach = ParametrizedValue(line[len('ATTACH'):])
+            if attach.value.lower() == 'cid:...':
+                for attachment in attachments:
+                    attach = ParametrizedValue('')
+                    params = {'FMTTYPE': attachment['content-type'],
+                              'ENCODING': 'BASE64',
+                              'VALUE': 'BINARY'}
+                    if attachment['filename']:
+                        params['X-FILENAME'] = attachment['filename']
+                    attach.set_params(params)
+                    # TODO Here we assume our content is already base64-encoded
+                    # which is bad obviously
+                    payload = attachment['payload']
+                    lines = []
+                    for line in payload.splitlines():
+                        lines.append(' %s' % line)
+                    payload = '\r\n'.join(lines)
+                    attach.value = '\r\n%s' % payload
+                    self.attachments.append(attach)
         else:
             # Don't add lines if we got a property: the line is
             # auto-added in the property setter
@@ -423,9 +464,14 @@ class Event(object):
 
     def to_ical(self):
         attendees_lines = []
+        attachments_lines = []
         for attendee in self.attendees:
             attendees_lines.append('ATTENDEE%s' % attendee)
-        return 'BEGIN:VEVENT\r\n%s\r\n%s\r\nEND:VEVENT\r\n' % ('\r\n'.join(self.lines), '\r\n'.join(attendees_lines))
+        for attachment in self.attachments:
+            attachments_lines.append('ATTACH%s' % attachment)
+        return 'BEGIN:VEVENT\r\n%s\r\n%s\r\n%s\r\nEND:VEVENT\r\n' % (
+                    '\r\n'.join(self.lines), '\r\n'.join(attendees_lines),
+                    '\r\n'.join(attachments_lines))
 
     def __eq__(self, other):
         # Get the properties as a dictionary without lines numbers to compare them

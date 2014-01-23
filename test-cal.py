@@ -34,6 +34,25 @@ def create_parametrized_value(params, value):
     parametrized.value = value
     return parametrized
 
+def create_email(ical):
+    mail = '\r\n'.join(['Mime-Version: 1.0',
+                        'X-Mailer: GroupWise 2012',
+                        'Subject: Title',
+                        'Date: Wed, 15 Jan 2014 14:46:00 +0000',
+                        'Message-ID: <xxxxxx@hacker.com>',
+                        'From: "Joe Hacker" <joe@hacker.com>',
+                        'To: Bob Hacker <bob@hacker.com>',
+                        'Content-Type: text/calendar',
+                        '',
+                        ical])
+    return mail
+
+def load_from_file(path):
+    fdescr = open(path, 'r')
+    content = fdescr.read()
+    fdescr.close()
+    return content
+
 class CalendarTest(unittest.TestCase):
 
     def test_timezone_utcoffset(self):
@@ -145,7 +164,7 @@ class CalendarTest(unittest.TestCase):
                             ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
                             'END:VEVENT',
                             'END:VCALENDAR'])
-        parsed = cal.Calendar(data)
+        parsed = cal.Calendar(create_email(data))
 
         expected_event = cal.Event(None)
         expected_event.uid = '20131007T194020Z-3587-100-1732-0@laptop'
@@ -163,6 +182,18 @@ class CalendarTest(unittest.TestCase):
                                                           'PARTSTAT': 'NEEDS-ACTION', 'RSVP': 'TRUE', \
                                                           'LANGUAGE': 'en'}, 'MAILTO:alice@hacker.com' ) ]
         self.assertEqual(parsed.events[0], expected_event)
+
+    def test_parse_mail_attachement(self):
+        mail = load_from_file('tests/attach.eml')
+        tested = cal.Calendar(mail)
+        tested_event = tested.events[0]
+
+        expected = create_parametrized_value({'FMTTYPE': 'text/plain',
+                                              'X-FILENAME': 'foo.txt',
+                                              'ENCODING': 'BASE64',
+                                              'VALUE': 'BINARY'},
+                                             'c29tZSBjb250ZW50')
+        self.assertEqual(tested_event.attachments[0], expected)
 
     def test_calendar_diff_added(self):
         data_old = '\r\n'.join(['BEGIN:VCALENDAR',
@@ -188,7 +219,7 @@ class CalendarTest(unittest.TestCase):
                             ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
                             'END:VEVENT',
                             'END:VCALENDAR'])
-        old = cal.Calendar(data_old)
+        old = cal.Calendar(create_email(data_old))
 
         data_new = '\r\n'.join(['BEGIN:VCALENDAR',
                             'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
@@ -228,7 +259,7 @@ class CalendarTest(unittest.TestCase):
                             ' RSVP=TRUE;LANGUAGE=en:MAILTO:bob@hacker.com',
                             'END:VEVENT',
                             'END:VCALENDAR'])
-        new = cal.Calendar(data_new)
+        new = cal.Calendar(create_email(data_new))
 
         (changed, removed, added, unchanged) = old.diff(new)
 
@@ -261,7 +292,7 @@ class CalendarTest(unittest.TestCase):
                             ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
                             'END:VEVENT',
                             'END:VCALENDAR'])
-        old = cal.Calendar(data_old)
+        old = cal.Calendar(create_email(data_old))
 
         data_new = '\r\n'.join(['BEGIN:VCALENDAR',
                             'PRODID:-//Ximian//NONSGML Evolution Calendar//EN',
@@ -286,7 +317,7 @@ class CalendarTest(unittest.TestCase):
                             ' RSVP=TRUE;LANGUAGE=en:MAILTO:alice@hacker.com',
                             'END:VEVENT',
                             'END:VCALENDAR'])
-        new = cal.Calendar(data_new)
+        new = cal.Calendar(create_email(data_new))
 
         (changed, removed, added, unchanged) = old.diff(new)
 

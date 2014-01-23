@@ -1,0 +1,74 @@
+Mime-Version: 1.0
+X-Mailer: GroupWise 2012
+Subject: Meeting with attachment
+Date: Wed, 15 Jan 2014 14:46:00 +0000
+Message-ID: <xxxxxx@hacker.com>
+From: "Joe Hacker" <joe@hacker.com>
+To: Bob Hacker <bob@hacker.com>
+Content-Type: multipart/mixed; boundary="____OPKTRUSMEAREKEHXVMOR____"
+
+
+--____OPKTRUSMEAREKEHXVMOR____
+Content-Type: multipart/alternative; boundary="____MAXRDPLXPFUILJCWMGKD____"
+
+
+--____MAXRDPLXPFUILJCWMGKD____
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: inline
+
+Item Type:  Appointment
+Start Date:  Thursday, 23 Jan 2014, 4:00 PM CET (0100)
+Duration:  1 Hour, 30 Mins
+Place:  Bob's office
+
+Test meeting with attachment.
+
+
+
+--____MAXRDPLXPFUILJCWMGKD____
+Content-class: urn:content-classes:calendarmessage
+Content-Type: text/calendar; charset=utf-8; component="vevent";
+	 method="request"
+Content-Transfer-Encoding: 8bit
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Novell Inc//Groupwise 12.0.2 
+METHOD:REQUEST
+BEGIN:VEVENT
+X-GWITEM-TYPE:APPOINTMENT
+DTSTART:20140123T150000Z
+SUMMARY:Meeting with attachment
+DTSTAMP:20140115T144600Z
+X-GWMESSAGEID:52D6AD38.EMEA5.EMEA5-1.200.20000E9.1.31E7AF.1
+LAST-MODIFIED:20140123T083836Z
+TRANSP:OPAQUE
+X-GWSHOW-AS:BUSY
+X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY
+STATUS:TENTATIVE
+X-GWRECORDID:52D69F29.EMEA1.EMEA1-4.100.16A7873.1.3147.1
+ORGANIZER;CN="Joe Hacker";ROLE=CHAIR:MAILTO:joe@hacker.com
+ATTENDEE;CN="Bob Hacker"; MAILTO:bob@hacker.com
+DESCRIPTION:
+ Test meeting with attachment.
+ATTACH:CID:...
+LOCATION:Bob's office
+DTEND:20140123T163000Z
+UID:20140115T154305Z_C85000E9C85@suse.com
+PRIORITY:5
+CLASS:PUBLIC
+X-GWCLASS:NORMAL
+END:VEVENT
+END:VCALENDAR
+
+--____MAXRDPLXPFUILJCWMGKD____--
+
+--____OPKTRUSMEAREKEHXVMOR____
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; 
+ filename="foo.txt"
+
+c29tZSBjb250ZW50
+--____OPKTRUSMEAREKEHXVMOR____--

@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import imaplib
-import email
 import sys
 from cal import Calendar
 from datetime import datetime
@@ -43,35 +42,15 @@ class GWConnection:
         err, ids = self.imap.search(None, '(ALL)')
         return ids[0].split()
 
-    @staticmethod
-    def get_ical_from_multipart(mail):
-        event = None
-        if mail.is_multipart():
-            for part in mail.get_payload():
-                if part.is_multipart():
-                    event = GWConnection.get_ical_from_multipart(part)
-                else:
-                    if part.get_content_type().startswith('text/calendar'):
-                        # We got the ical part of the multipart!
-                        event = part.get_payload()
-        elif mail.get_content_type().startswith('text/calendar'):
-            event = mail.get_payload()
-        return event
-
-
     def get_event(self, mail_id):
         # TODO Caching the events would be needed,
         # though we still need to find a way to get changed appointments
         err, data = self.imap.fetch(mail_id, '(RFC822)')
-        mail = email.message_from_string(data[0][1])
-        ical = self.get_ical_from_multipart(mail)
-        self.debug('\n>>> %s\n<<<' % ical)
-        calendar = Calendar(ical)
+        calendar = Calendar(data[0][1])
         event = None
         if len(calendar.events) > 0:
             event = calendar.events[0]
         return event
-
 
     def dump(self, path):
         events = {}
