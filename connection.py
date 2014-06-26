@@ -65,10 +65,13 @@ class GWConnection:
 
         def attach_write_func(name, content):
             attach_path = os.path.join(attachdir_path, name)
-            os.makedirs(os.path.dirname(attach_path))
-            fdescr = open(attach_path, 'w')
-            fdescr.write(content)
-            fdescr.close()
+            attach_dir = os.path.dirname(attach_path)
+            if not os.path.exists(attach_dir):
+                os.makedirs(attach_dir)
+            if not os.path.exists(attach_path):
+                fdescr = open(attach_path, 'w')
+                fdescr.write(content)
+                fdescr.close()
 
             return 'file://%s' % attach_path
 
