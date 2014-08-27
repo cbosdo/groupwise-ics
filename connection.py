@@ -192,9 +192,36 @@ class GwSoapClient(object):
         if self.session is None:
             self.connect()
 
-        request = '<ns2:getItemRequest><ns2:id>%s</ns2:id></ns2:getItemRequest>' % itemid
+        request = '''
+<ns2:getItemRequest>
+  <ns2:id>%s</ns2:id>
+</ns2:getItemRequest>''' % itemid
         response = self.request('getItemRequest', request)
         print response
+
+    def get_folder_id_by_type(self, folder_type):
+        # autoconnect
+        if self.session is None:
+            self.connect()
+
+        request = '''
+<ns2:getFolderRequest>
+  <ns2:folderType>%s</ns2:folderType>
+</ns2:getFolderRequest>''' % folder_type
+        response = self.request('getFolderRequest', request)
+
+        root = ET.fromstring(response)
+        ns = {'gwm': 'http://schemas.novell.com/2005/01/GroupWise/methods', \
+              'gwt': 'http://schemas.novell.com/2005/01/GroupWise/types'}
+        ids = root.findall('.//gwm:getFolderResponse/gwm:folder/gwt:id', ns)
+
+        print ids
+
+        result = None
+        if len(ids) > 0:
+            result = ids[0].text
+        return result
+
 
     def get_folder_id(self, parent_id, name):
         # autoconnect
@@ -203,7 +230,10 @@ class GwSoapClient(object):
 
         if parent_id is None:
             parent_id = 'folders'
-        request = '<ns2:getFolderListRequest><ns2:parent>%s</ns2:parent></ns2:getFolderListRequest>' % parent_id
+        request = '''
+<ns2:getFolderListRequest>
+  <ns2:parent>%s</ns2:parent>
+</ns2:getFolderListRequest>''' % parent_id
         response = self.request('getFolderListRequest', request)
 
         root = ET.fromstring(response)
