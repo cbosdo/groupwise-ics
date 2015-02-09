@@ -313,14 +313,13 @@ class Event(object):
             value = self.properties[key][0]
         return value
     def set_property(self,value, key, pattern):
-        if key not in self.properties:
-            lineno = len(self.lines)
-            self.lines.append(pattern % value)
-            self.properties[key] = (value, lineno)
-        else:
-            self.properties[key][0] = value
+        if key in self.properties:
             lineno = self.properties[key][1]
-            self.lines[lineno] = pattern % value
+            del self.lines[lineno]
+            del self.properties[key]
+        lineno = len(self.lines)
+        self.lines.append(pattern % value)
+        self.properties[key] = (value, lineno)
 
     def get_uid(self):
         return self.get_property('uid')
