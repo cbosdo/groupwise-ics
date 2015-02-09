@@ -54,8 +54,8 @@ def main(args):
     (options, args) = parser.parse_args()
 
     if options.config is None:
-        parser.error('--gw-config is required')
- 
+        parser.error('--config is required')
+
     config = {}
     execfile(get_path(options.config), {}, config)
 
