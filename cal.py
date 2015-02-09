@@ -53,7 +53,7 @@ class Calendar(object):
 
         for part in mail.walk():
             if part.get_content_type().startswith('text/calendar'):
-                ical = part.get_payload()
+                ical = part.get_payload(decode=True)
             else:
                 disposition = part.get('Content-Disposition')
                 if disposition and disposition.startswith('attachment'):
