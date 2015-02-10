@@ -47,6 +47,7 @@ class GWConnection:
         # TODO Caching the events would be needed,
         # though we still need to find a way to get changed appointments
         err, data = self.imap.fetch(mail_id, '(RFC822)')
+        self.debug('Mail content to parse: \n------\n%s\n' % data[0][1])
         calendar = Calendar(data[0][1], attach_write_func)
         event = None
         if len(calendar.events) > 0:
