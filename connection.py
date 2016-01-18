@@ -87,8 +87,6 @@ class GWConnection:
             event = self.get_event(mail_id, attach_write_func)
             dtstamp = datetime.strptime(event.dtstamp, '%Y%m%dT%H%M%SZ')
             uid = event.uid
-            if event.gwrecordid is not None:
-                uid = event.gwrecordid
 
             if uid is not None:
                 if uid in events and \
