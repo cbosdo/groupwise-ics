@@ -19,6 +19,7 @@ from dateutil import rrule
 import email
 import os.path
 import sys
+import re
 
 class LineUnwrapper(object):
     def __init__(self, s):
@@ -463,6 +464,19 @@ class Event(object):
 
         return value.to_ical()
 
+    def fix_groupwise_inconsistencies (self):
+        # full day dtstart
+        if self.get_dtstart().find('T')>=0 :
+            exdate = False
+            for i in range(len(self.lines)):
+                # ensure excluding event are fullday too
+                if self.lines[i].startswith('EXDATE;TZID=""'):
+                    exdate = True
+                elif exdate and self.lines[i].startswith(' '):
+                    self.lines[i] = re.sub("T[0-9]*","", self.lines[i])
+                else:
+                    exdate = False
+
     def to_ical(self):
         attendees_lines = []
         attachments_lines = []
@@ -470,6 +484,7 @@ class Event(object):
             attendees_lines.append('ATTENDEE%s' % attendee)
         for attachment in self.attachments:
             attachments_lines.append('ATTACH%s' % attachment)
+        self.fix_groupwise_inconsistencies()
         return 'BEGIN:VEVENT\r\n%s\r\n%s\r\n%s\r\nEND:VEVENT\r\n' % (
                     '\r\n'.join(self.lines), '\r\n'.join(attendees_lines),
                     '\r\n'.join(attachments_lines))
