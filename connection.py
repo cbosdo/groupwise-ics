@@ -85,6 +85,8 @@ class GWConnection:
         ids = self.get_mails_ids( );
         for mail_id in ids:
             event = self.get_event(mail_id, attach_write_func)
+            if event is None:
+                continue
             dtstamp = datetime.strptime(event.dtstamp, '%Y%m%dT%H%M%SZ')
             uid = event.uid
 

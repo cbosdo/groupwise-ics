@@ -18,10 +18,15 @@ import time
 from dateutil import rrule
 import email
 import os.path
+import sys
 
 class LineUnwrapper(object):
     def __init__(self, s):
-        self.lines = s.split('\n')
+        try:
+            self.lines = s.split('\n')
+        except:
+            print >> sys.stderr, "Can't parse %s\n" % (s)
+            self.lines = []
         self.lines_read = None
         self.saved = None
 
@@ -64,8 +69,10 @@ class Calendar(object):
                     attachment['content-type'] = part.get_content_type()
                     attachment['payload'] = part.get_payload(decode=True)
                     attachments.append(attachment)
-
-        self.parse(ical, attachments, attach_write_func)
+        if ical is None:
+            print >> sys.stderr, "Didn't find any ical data in following email %s\n" % (mailstr)
+        else:
+            self.parse(ical, attachments, attach_write_func)
 
     def parse(self, ical, attachments, attach_write_func=None):
         content = LineUnwrapper(ical)
