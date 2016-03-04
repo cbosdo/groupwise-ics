@@ -56,6 +56,7 @@ class Calendar(object):
         mail = email.message_from_string(mailstr)
         ical = None
         attachments = []
+        self.timezones = {}
 
         for part in mail.walk():
             if part.get_content_type().startswith('text/calendar'):
@@ -80,16 +81,20 @@ class Calendar(object):
         vtimezone = None
         vevent = None
         tzmap = {}
+        timezone = []
 
         for (real_lines, line) in content.each_line():
             if vtimezone is not None:
+                timezone.append(line)
                 if line == 'END:VTIMEZONE':
                     tzmap[vtimezone.tzid] = vtimezone
+                    self.timezones[vtimezone.tzid] = timezone
                     vtimezone = None
                 else:
                     vtimezone.parseline(line)
             elif vevent is None and line == 'BEGIN:VTIMEZONE':
                 vtimezone = Timezone()
+                timezone.append(line)
             elif vevent is not None:
                 if line == 'END:VEVENT':
                     self.events.append(vevent)
@@ -151,6 +156,9 @@ class Calendar(object):
         out  = 'BEGIN:VCALENDAR\r\n'
         out += 'PRODID:-//SUSE Hackweek//NONSGML groupwise-to-ics//EN\r\n'
         out += 'VERSION:2.0\r\n'
+
+        for timezone in self.timezones:
+            out += '\r\n'.join(self.timezones[timezone])
 
         for event in self.events:
             out += event.to_ical()
@@ -443,6 +451,8 @@ class Event(object):
 
     def datetime_to_utc(self, local):
         value = ParametrizedValue(local)
+        return value.to_ical() # FIXME disable code below, it doesn't handle all case
+
         if 'TZID' in value.params:
             # We got a localized time, search for the timezone definition
             # we extracted from the calendar and convert to UTC

@@ -29,6 +29,7 @@ class GWConnection:
     def __init__(self, server, debug = False):
         self.is_debug = debug
         self.imap = imaplib.IMAP4_SSL(server)
+        self.timezones = {}
 
     def debug(self, message):
         if self.is_debug:
@@ -52,6 +53,10 @@ class GWConnection:
         event = None
         if len(calendar.events) > 0:
             event = calendar.events[0]
+        if len(calendar.timezones) > 0:
+            for key in calendar.timezones:
+                self.timezones[key] = calendar.timezones[key]
+        self.debug("%s\n" % calendar.to_ical)
         return event
 
     def dump(self, path):
@@ -105,6 +110,10 @@ class GWConnection:
         fp.write('BEGIN:VCALENDAR\r\n')
         fp.write('PRODID:-//SUSE Hackweek//NONSGML groupwise-to-ics//EN\r\n')
         fp.write('VERSION:2.0\r\n')
+
+        for timezone in self.timezones:
+            fp.write('\r\n'.join(self.timezones[timezone]))
+            fp.write('\r\n')
 
         for eventid in events:
             event = events[eventid]
